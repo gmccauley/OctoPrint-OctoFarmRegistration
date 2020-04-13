@@ -1,0 +1,36 @@
+<form class="form-horizontal">
+	<div class="control-group">
+		<label class="control-label">{{ _('OctoFarm HostName') }}</label>
+		<div class="controls">
+			<input type="text" class="input-block-level" data-bind="value: settings.plugins.octofarmregistration.OctoFarmHost">
+		</div>
+
+		<label class="control-label">{{ _('OctoFarm Port') }}</label>
+		<div class="controls">
+			<input type="text" class="input-block-level" data-bind="value: settings.plugins.octofarmregistration.OctoFarmPort">
+		</div>
+		
+		<label class="control-label">{{ _('SSL Enabled') }}</label>
+		<div class="controls">
+			<input type="checkbox" data-bind="checked: settings.plugins.octofarmregistration.OctoFarmSSL">
+		</div>	
+	</div>
+	
+	<div class="control-group">
+		<label class="control-label">{{ _('OctoFarm Username') }}</label>
+		<div class="controls">
+			<input type="text" class="input-block-level" data-bind="value: settings.plugins.octofarmregistration.OctoFarmUser">
+		</div>
+
+		<label class="control-label">{{ _('OctoFarm Password') }}</label>
+		<div class="controls">
+			<input type="password" class="input-block-level" data-bind="value: settings.plugins.octofarmregistration.OctoFarmPass">
+		</div>
+	</div>
+	
+	<div class="control-group">
+		<div class="control-group">
+			<a title="Register Now" id="RegisterNow" class="btn" >Register Now</a>
+		</div>
+	</div>
+</form>
