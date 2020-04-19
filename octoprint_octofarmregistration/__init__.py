@@ -4,6 +4,8 @@ from __future__ import absolute_import, unicode_literals
 import octoprint.plugin
 import requests
 import socket
+import threading
+import time
 
 class OctoFarmRegistrationPlugin(octoprint.plugin.StartupPlugin,
                        octoprint.plugin.TemplatePlugin,
@@ -12,12 +14,18 @@ class OctoFarmRegistrationPlugin(octoprint.plugin.StartupPlugin,
 					   octoprint.plugin.SimpleApiPlugin):
 
 	def on_startup(self, host, port):
-		global StartupPort
-		StartupPort = port
+		self.StartupPort = port
+		self.StartupCORS = self._settings.global_get(["api","allowCrossOrigin"])
 
 
 	def on_after_startup(self):
-		self.doRegister("Startup")
+		self._settings.set(["OctoFarmRegistrationInProgress"], False)
+		if self.StartupCORS:
+			self._settings.set(["OctoFarmRestartRequired"], False)
+		else:
+			self._settings.set(["OctoFarmRestartRequired"], True)
+		thread = threading.Timer(0,self.doRegister,["Startup"])
+		thread.start()
 
 
 	def get_settings_defaults(self):
@@ -25,13 +33,19 @@ class OctoFarmRegistrationPlugin(octoprint.plugin.StartupPlugin,
 		            OctoFarmPort="4000",
 					OctoFarmSSL=False,
 					OctoFarmUser="",
-					OctoFarmPass="")
+					OctoFarmPass="",
+					OctoFarmRestartRequired=False,
+					OctoFarmRegistrationInProgress=False)
 
 
-	def get_template_configs(self):
-		return [
-			dict(type="settings", custom_bindings=False)
-		]
+	def on_settings_save(self, data):
+		if "OctoFarmRegistrationInProgress" in data:
+			return
+		self._logger.info("Settings Saved")
+		self._logger.info("Settings: " + str(data))
+		octoprint.plugin.SettingsPlugin.on_settings_save(self, data)
+		thread = threading.Timer(0,self.doRegister,["Manual"])
+		thread.start()
 
 
 	def get_assets(self):
@@ -53,11 +67,40 @@ class OctoFarmRegistrationPlugin(octoprint.plugin.StartupPlugin,
 	def on_api_command(self, command, data):
 		import flask
 		if command == "Register":
-			self.doRegister("Manual")
+			if not self._settings.get(["OctoFarmRegistrationInProgress"]):
+				thread = threading.Timer(0,self.doRegister,["Manual"])
+				thread.start()
 
 
 	def doRegister(self, type):
+		if self._settings.get(["OctoFarmRegistrationInProgress"]):
+			self._logger.info("Registration Already in Progress")
+			self._plugin_manager.send_plugin_message(self._identifier, dict(action="popup", type="notice", text="Registration Already in Progress"))
+			return
+		self._settings.set(["OctoFarmRegistrationInProgress"], True)
+		self._settings.save()
+		
 		self._logger.info("Starting %s Registration" % type)
+		if type == "Startup":
+			self._logger.info("Startup Registration sleeping for 10 seconds to allow OctoPrint to start")
+			time.sleep(20)
+		else:
+			time.sleep(10)
+
+		# Set CORS
+		if self._settings.global_get(["api","allowCrossOrigin"]):
+			self._logger.info("CORS Already Enabled")
+		else:   
+			self._logger.info("Enabling CORS")
+			self._settings.global_set(["api","allowCrossOrigin"], True)
+			self._settings.save()
+			if type == "Startup":
+				self._logger.info("Restart Required to enable CORS")
+				self._settings.set(["OctoFarmRegistrationInProgress"], False)
+				self._settings.save()
+				return
+		
+		# Check For Settings
 		bolError = False
 		if self._settings.get(["OctoFarmHost"]) == "":
 			self._logger.warn("No OctoFarm Hostname")
@@ -71,10 +114,12 @@ class OctoFarmRegistrationPlugin(octoprint.plugin.StartupPlugin,
 		if self._settings.get(["OctoFarmPass"]) == "":
 			self._logger.warn("No OctoFarm Password")
 			bolError = True
-		
 		if bolError == True:
 			self._logger.error("Registration Failed")
+			self._plugin_manager.send_plugin_message(self._identifier, dict(action="doneRegister"))
 			self._plugin_manager.send_plugin_message(self._identifier, dict(action="popup", type="error", text="Registration Failed"))
+			self._settings.set(["OctoFarmRegistrationInProgress"], False)
+			self._settings.save()
 			return
 		
 		# Build OctoFarm Base URL
@@ -85,6 +130,9 @@ class OctoFarmRegistrationPlugin(octoprint.plugin.StartupPlugin,
 		OctoFarmCookie = self.getCookie(OctoFarmBaseUrl)
 		self._logger.info("Cookie: " + str(OctoFarmCookie))
 		if OctoFarmCookie is None:
+			self._plugin_manager.send_plugin_message(self._identifier, dict(action="doneRegister"))
+			self._settings.set(["OctoFarmRegistrationInProgress"], False)
+			self._settings.save()
 			return
 
 		# Get list of Printers from OctoFarm
@@ -95,7 +143,6 @@ class OctoFarmRegistrationPlugin(octoprint.plugin.StartupPlugin,
 		# Get Current OctoPrint Info
 		MyInfo = self.getMyInfo()
 		self._logger.info("My Info: " + str(MyInfo))
-		
 		
 		PrinterIndex = self.isPrinterExists(MyInfo, OctoFarmPrinterList)
 		if PrinterIndex is None:
@@ -111,22 +158,24 @@ class OctoFarmRegistrationPlugin(octoprint.plugin.StartupPlugin,
 				self._logger.error("Registration Failed - Unknown Error")
 				self._plugin_manager.send_plugin_message(self._identifier, dict(action="popup", type="error", text="Registration Failed - Unknown Error"))			
 		else:
-			self._logger.info("Printer Already Exists")
-			self._plugin_manager.send_plugin_message(self._identifier, dict(action="popup", type="notice", text="Printer Already Exists"))
-			#if self.isPrinterAccurate(MyInfo, OctoFarmPrinterList[PrinterIndex]):
-			#	self._logger.info("Printer Already Exists")
-			#	self._plugin_manager.send_plugin_message(self._identifier, dict(action="popup", type="notice", text="Printer Already Exists"))
-			#else:
-			#	OctoFarmPrinterList[PrinterIndex]['ip'] = MyInfo['ip']
-			#	OctoFarmPrinterList[PrinterIndex]['port'] = MyInfo['port']
-			#	OctoFarmPrinterList[PrinterIndex]['camURL'] = MyInfo['camURL']
-			#	self._logger.info("New PrinterList: " + str(OctoFarmPrinterList))
-			#	if self.savePrinters(OctoFarmBaseUrl, OctoFarmCookie, OctoFarmPrinterList):
-			#		self._logger.info("Registration Update Succeeded")
-			#		self._plugin_manager.send_plugin_message(self._identifier, dict(action="popup", type="success", text="Registration Update Succeeded"))
-			#	else:
-			#		self._logger.error("Registration Update Failed - Unknown Error")
-			#		self._plugin_manager.send_plugin_message(self._identifier, dict(action="popup", type="error", text="Registration Update Failed - Unknown Error"))			
+			if self.isPrinterAccurate(MyInfo, OctoFarmPrinterList[PrinterIndex]):
+				self._logger.info("Printer Already Exists")
+				self._plugin_manager.send_plugin_message(self._identifier, dict(action="popup", type="notice", text="Printer Already Exists"))
+			else:
+				OctoFarmPrinterList[PrinterIndex]['ip'] = MyInfo['ip']
+				OctoFarmPrinterList[PrinterIndex]['port'] = MyInfo['port']
+				OctoFarmPrinterList[PrinterIndex]['camURL'] = MyInfo['camURL']
+				self._logger.info("New PrinterList: " + str(OctoFarmPrinterList))
+				if self.savePrinters(OctoFarmBaseUrl, OctoFarmCookie, OctoFarmPrinterList):
+					self._logger.info("Registration Update Succeeded")
+					self._plugin_manager.send_plugin_message(self._identifier, dict(action="popup", type="success", text="Registration Update Succeeded"))
+				else:
+					self._logger.error("Registration Update Failed - Unknown Error")
+					self._plugin_manager.send_plugin_message(self._identifier, dict(action="popup", type="error", text="Registration Update Failed - Unknown Error"))			
+
+		self._plugin_manager.send_plugin_message(self._identifier, dict(action="doneRegister"))
+		self._settings.set(["OctoFarmRegistrationInProgress"], False)
+		self._settings.save()
 
 
 	def getBaseURL(self):
@@ -179,7 +228,7 @@ class OctoFarmRegistrationPlugin(octoprint.plugin.StartupPlugin,
 		self._logger.info("ip: " + MyInfo['ip'])
 
 		# Get OctoPrint Port
-		MyInfo['port'] = str(StartupPort)
+		MyInfo['port'] = str(self.StartupPort)
 		self._logger.info("port: " + MyInfo['port'])
 
 		# Get OctoPrint camURL
@@ -212,19 +261,27 @@ class OctoFarmRegistrationPlugin(octoprint.plugin.StartupPlugin,
 
 	def savePrinters(self, OctoFarmBaseUrl, OctoFarmCookie, OctoFarmPrinterList):
 		OctoFarmSaveUrl = OctoFarmBaseUrl + "/printers/save"
+		OctoFarmInitUrl = OctoFarmBaseUrl + "/printers/runner/init"
 		try:
 			SaveResponse = requests.post(url = OctoFarmSaveUrl, json = OctoFarmPrinterList, cookies = OctoFarmCookie, timeout=30)
+			self._logger.info("SaveResponse: " + str(SaveResponse))
 		except requests.exceptions.RequestException as e:
 			error = e
-		self._logger.info("savePrinters Response Headers: " + str(SaveResponse.headers))
-		self._logger.info("savePrinters Status Code: " + str(SaveResponse.status_code))
+			self._logger.info("Error: " + str(e))
+		#self._logger.info("savePrinters Response Headers: " + str(SaveResponse.headers))
+		#self._logger.info("savePrinters Status Code: " + str(SaveResponse.status_code))
 		if SaveResponse.status_code == 200:
+			InitResponse = requests.post(url = OctoFarmInitUrl, cookies = OctoFarmCookie, timeout=30)
+			self._logger.info("InitResponse: " + str(InitResponse))
 			return True
 		else:
 			return False
 
 
-StartupPort = ""
+	def saveSettings(self):
+		self._logger.info(self._settings.get(["OctoFarmHost"]))
+
+
 __plugin_name__ = "OctoFarm Registration"
 __plugin_pythoncompat__ = ">=2.7,<4"
 __plugin_implementation__ = OctoFarmRegistrationPlugin()

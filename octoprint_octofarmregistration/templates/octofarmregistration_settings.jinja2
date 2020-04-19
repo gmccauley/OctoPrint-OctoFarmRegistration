@@ -29,8 +29,20 @@
 	</div>
 	
 	<div class="control-group">
-		<div class="control-group">
-			<a title="Register Now" id="RegisterNow" class="btn" >Register Now</a>
+		<div class="control-group" data-bind="visible: !restartRequired()">
+			<button class="btn btn-primary" data-bind="click: function() { registerNow() }, css: {disabled: registerInProgress()}, disable: registerInProgress()">Register Now</button>
+			&nbsp;&nbsp;<i class="fa fa-spinner fa-spin" data-bind="enabled:!registerInProgress(), css: {disabled: registerInProgress()}, visible: registerInProgress()"></i>
+		</div>
+		<div class="control-group" data-bind="visible: restartRequired()">
+			<div>	
+				<span class="help-block">
+					<small>
+						CORS was not enabled when OctoPrint started.<br>
+						Please Restart OctoPrint!<br>
+					</small>
+				</span>
+		</div>
+			<button class="btn btn-danger" data-bind="click: function() { restartNow() }">Restart Now</button>
 		</div>
 	</div>
 </form>
