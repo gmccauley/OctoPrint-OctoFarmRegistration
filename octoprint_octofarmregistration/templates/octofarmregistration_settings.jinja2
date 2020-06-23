@@ -1,5 +1,12 @@
 <form class="form-horizontal">
 	<div class="control-group">
+		<label class="control-label">{{ _('OctoPrint URL') }}</label>
+		<div class="controls">
+			<input type="text" class="input-block-level" data-bind="value: settings.plugins.octofarmregistration.OctoPrintURL">
+		</div>
+	</div>
+	
+	<div class="control-group">
 		<label class="control-label">{{ _('OctoFarm HostName') }}</label>
 		<div class="controls">
 			<input type="text" class="input-block-level" data-bind="value: settings.plugins.octofarmregistration.OctoFarmHost">
@@ -28,6 +35,34 @@
 		</div>
 	</div>
 	
+	<div class="control-group">
+		<label class="control-label">{{ _('OctoFarm Group') }}</label>
+		<div class="controls">
+			<input type="text" class="input-block-level" data-bind="value: settings.plugins.octofarmregistration.OctoFarmGroup">
+		</div>
+	</div>
+	
+	<div class="control-group">
+		<label class="control-label">{{ _('OctoFarm ID') }}</label>
+		<div class="controls">
+			<input type="text" class="input-block-level" data-bind="value: settings.plugins.octofarmregistration.OctoFarmID" disabled>
+		</div>
+	</div>
+	
+	<div class="control-group">
+		<label class="control-label">{{ _('Run at Startup') }}</label>
+		<div class="controls">
+			<input type="checkbox" data-bind="checked: settings.plugins.octofarmregistration.OctoFarmRunAtStartup">
+		</div>	
+	</div>
+	
+	<div class="control-group">
+		<label class="control-label">{{ _('Run after Saving Settings') }}</label>
+		<div class="controls">
+			<input type="checkbox" data-bind="checked: settings.plugins.octofarmregistration.OctoFarmRunAtSettingsSave">
+		</div>	
+	</div>
+
 	<div class="control-group">
 		<div class="control-group" data-bind="visible: !restartRequired()">
 			<button class="btn btn-primary" data-bind="click: function() { registerNow() }, css: {disabled: registerInProgress()}, disable: registerInProgress()">Register Now</button>

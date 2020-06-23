@@ -4,7 +4,7 @@ $(function() {
 		var PLUGIN_ID = 'octofarmregistration'
 		
 		self.SettingsViewModel = parameters[0];
-		console.log(self.SettingsViewModel);
+		//console.log(self.SettingsViewModel);
 		
 		self.registerInProgress = ko.observable();
 		self.restartRequired = ko.observable(true);
@@ -25,6 +25,8 @@ $(function() {
 			}
 
 			if(data.action == "doneRegister") {
+				self.SettingsViewModel.settings.plugins.octofarmregistration.OctoFarmID(data.id);
+				console.log(self.SettingsViewModel);
 				console.log("Registration Complete");
 				self.registerInProgress(false);
 			}
@@ -87,6 +89,13 @@ $(function() {
 
 		self.onSettingsShown = function() {
 			self.requestData();
+
+			if(self.SettingsViewModel.settings.plugins.octofarmregistration.OctoPrintURL() == "") {
+				console.log("No OctoPrintURL");
+				self.SettingsViewModel.settings.plugins.octofarmregistration.OctoPrintURL(window.location.protocol + "//" + window.location.hostname + ":" + window.location.port)
+			}
+			
+			console.log("OctoPrintURL: " + self.SettingsViewModel.settings.plugins.octofarmregistration.OctoPrintURL());
 		};
 	}
 
